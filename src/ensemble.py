@@ -3,7 +3,7 @@ import torch as tr
 from torch import nn
 from torch.nn.functional import softmax
 from pathlib import Path
-from src.utils.utils import ConfigLoader
+from src.utils import ConfigLoader
 from src.model import BaseModel
 
 

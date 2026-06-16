@@ -3,6 +3,7 @@ FASTA file reading utilities for protein sequences and annotations.
 """
 from pathlib import Path
 from typing import Dict, Union, Optional, Any
+import yaml
 
 
 def read_fasta(file_location: Union[str, Path], 
@@ -64,3 +65,78 @@ def read_fasta(file_location: Union[str, Path],
         save_buffer(header, sequence_buffer)
 
     return fasta
+
+
+class ConfigLoader:
+    def __init__(self, 
+                 model_path: str = 'config/base.yaml', 
+                 env_path: str = 'config/env.yaml'):
+        """
+        Initializes the ConfigLoader class with paths to model and environment 
+        configuration files.
+
+        Args:
+            model_path: Path to the model config YAML file.
+            env_path: Path to the environment config YAML file.
+        """
+        self.model_path = model_path
+        self.env_path = env_path
+        
+        self.config = None # Combined configuration dictionary
+        self.model = None  # Model configuration dictionary
+
+    def load(self) -> dict:
+        """
+        Loads a model configuration and merges it with environment-specific 
+        settings.
+        Returns:
+            dict: Combined configuration dictionary.
+        """
+        self.model = self._load_yaml(self.model_path)
+        env = self._load_yaml(self.env_path)
+        self.config = {**self.model, **env}
+        return self.config
+    
+    def save(self, path: str):
+        """
+        Saves the model dict to a YAML file.
+        Args:
+            path: Path to save the configuration file.
+        """
+        if self.config is None:
+            raise ValueError("Configuration not loaded. Call load() first.")
+        file = Path(path) / "config.yaml"
+        with open(file, 'w') as f:
+            yaml.dump(self.model, f, default_flow_style=False)
+        print(f"Configuration saved to {file}")
+
+    def update(self, new_config: dict):
+        """
+        Updates the current configuration with a new configuration dictionary.
+        Args:
+            new_config (dict): New configuration dictionary to merge with the existing one.
+        """
+        if self.config is None:
+            raise ValueError("Configuration not loaded. Call load() first.")
+        self.config.update(new_config)
+        self.model.update(new_config)
+        print("Configuration updated.")    
+
+    def get_config(self) -> dict:
+        """
+        Returns the loaded configuration dictionary.
+        Returns:
+            dict: The loaded configuration dictionary.
+        """
+        if self.config is None:
+            raise ValueError("Configuration not loaded. Call load() first.")
+        return self.config
+
+    @staticmethod
+    def _load_yaml(path: str) -> dict:
+        """
+        Loads a YAML file from the given path and returns its content as 
+        a dictionary
+        """
+        with open(path, 'r') as f:
+            return yaml.safe_load(f)

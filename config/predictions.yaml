@@ -1,0 +1,3 @@
+main_model_dir: "models/first_proposal"
+energy_model_weights: "models/AIUPred/embedding.pt"
+threshold: 0.5
