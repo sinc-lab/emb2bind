@@ -5,7 +5,7 @@ from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, average_pre
 from tqdm import tqdm
 
 class BaseModel(nn.Module):
-    def __init__(self, nclasses, emb_size=352, lr=1e-3, device="cuda", 
+    def __init__(self, nclasses, emb_size=352, lr=1e-3, device="cpu", 
     filters=550, kernel_size=9, num_layers=3, first_dilated_layer=2, 
     dilation_rate=3, resnet_bottleneck_factor=.5, dropout_rate=0.4):
         """

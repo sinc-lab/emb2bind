@@ -13,7 +13,7 @@ class EnsembleModel(nn.Module):
     instances. Each model is loaded from a folder containing the config and 
     weights. The forward method averages the predicted probabilities from all models.
     """
-    def __init__(self, model_dirs, device='cuda'):
+    def __init__(self, model_dirs, device='cpu'):
         # TODO: agregar la posibilidad de cargar modelos en una carpeta o varias.
         super().__init__()
         self.device = device

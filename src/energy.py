@@ -61,7 +61,7 @@ class AIUPredTransformer(nn.Module):
 
 
 @tr.no_grad()
-def tokenize(sequence, device):
+def tokenize(sequence, device='cpu'):
     """
     Tokenize an amino acid sequence. Non-standard amino acids are treated as X.
     Args:
@@ -101,7 +101,7 @@ def clean_sequence(sequence: str) -> tuple[str, int]:
     return ''.join(out_seq), replaced
 
 
-def calculate_energy_embedding(sequence, energy_model, device, reduce=None, scale_factor=1.0):
+def calculate_energy_embedding(sequence, energy_model, device='cpu', reduce=None, scale_factor=1.0):
     """
     Calculates residue energy embedding from a sequence using a transformer
     network.
