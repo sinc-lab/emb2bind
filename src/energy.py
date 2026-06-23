@@ -101,7 +101,7 @@ def clean_sequence(sequence: str) -> tuple[str, int]:
     return ''.join(out_seq), replaced
 
 
-def calculate_energy_embedding(sequence, energy_model, device='cpu', reduce=None, scale_factor=1.0):
+def calculate_energy_embedding(sequence, energy_model, device='cpu', pooling_method='weighted', scale_factor=1.0):
     """
     Calculates residue energy embedding from a sequence using a transformer
     network.
@@ -110,7 +110,7 @@ def calculate_energy_embedding(sequence, energy_model, device='cpu', reduce=None
         sequence: Amino acid sequence in string
         energy_model: Transformer model
         device: Device to run on (CUDA{x} or CPU)
-        reduce: Reduction method - 'sum', 'mean', 'central', or None
+        pooling_method: Pooling method - 'sum', 'mean', 'central' or 'weighted'
         scale_factor: Optional scaling factor to apply to the embedding (default: 1.0)
     Returns:
         Tensor of energy embeddings per residue (L, D) or (L, WINDOW+1, D) if 
@@ -124,21 +124,21 @@ def calculate_energy_embedding(sequence, energy_model, device='cpu', reduce=None
     tokenized_sequence = tokenize(sequence, device)
     padded_token = pad(tokenized_sequence, (WINDOW // 2, WINDOW // 2), 'constant', 20)
     unfolded_tokens = padded_token.unfold(0, WINDOW + 1, 1)
-    embed_only = True if reduce is not None else False
+    embed_only = True if pooling_method is not None else False
     embedding = energy_model(unfolded_tokens, embed_only=embed_only)  # (L, WINDOW+1, D)
 
     # Reduce embedding if needed, to get per-residue representation (L, D)
-    if reduce == 'sum':
+    if pooling_method == 'sum':
         embedding = embedding.sum(dim=1)
 
-    elif reduce == 'mean':
+    elif pooling_method == 'mean':
         embedding = embedding.mean(dim=1)
 
-    elif reduce == 'central':
+    elif pooling_method == 'central':
         central_idx = WINDOW // 2
         embedding = embedding[:, central_idx, :]
         
-    elif reduce == 'weighted':
+    elif pooling_method == 'weighted':
         central_idx = WINDOW // 2        
         window_size = WINDOW + 1
         sigma = window_size / 6  # Proposed standard deviation (aprox. 16.67 for WINDOW=100)
