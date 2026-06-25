@@ -2,11 +2,12 @@
 Energy embedding module using Transformer network.
 Generates residue-level energy embeddings from protein sequences.
 """
+import math
 import torch as tr
 from torch import nn, Tensor
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.nn.functional import pad
-import math
+
 
 AA_CODE = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y', 'X']
 # Non-standard amino acids (B, Z, J, U, O) will be replaced with 'X' 
@@ -58,6 +59,15 @@ class AIUPredTransformer(nn.Module):
         output = tr.flatten(embedding, 1)
         output = self.decoder(output)
         return tr.squeeze(output)
+
+
+def load_energy_model(weights_path, device):
+    """Load the AIUPred model used to generate energy embeddings"""
+    energy_model = AIUPredTransformer()
+    energy_model.load_state_dict(tr.load(weights_path, map_location=device))
+    energy_model.to(device)
+    energy_model.eval()
+    return energy_model
 
 
 @tr.no_grad()

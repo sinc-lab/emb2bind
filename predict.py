@@ -10,15 +10,15 @@ import yaml
 import time
 import argparse
 import numpy as np
-import pandas as pd
 import torch as tr
 from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
+from src.ensemble import EnsembleModel, build_ensemble_dirs
+from src.energy import AIUPredTransformer, calculate_energy_embedding, load_energy_model
+from src.plms import load_plm_embedding
 from src.utils import read_fasta
-from src.ensemble import EnsembleModel
-from src.energy import AIUPredTransformer, calculate_energy_embedding
+from src.caid_output import format_caid_rows, save_protein_prediction_caid, save_combined_predictions, save_prediction_timings
+
 
 def parser():
     parser = argparse.ArgumentParser(
@@ -80,54 +80,6 @@ def set_threads(num_threads: int = 4):
     tr.set_num_threads(num_threads) # threads for intra-operation parallelism
 
 
-def load_plm_embedding(acc, plm_emb_dir):
-    """Load the precomputed pLM embedding for a protein accession."""
-    plm_path = Path(plm_emb_dir) / f"{acc}.npy"
-    if not plm_path.exists():
-        raise FileNotFoundError(f"pLM embedding not found: {plm_path}")
-    return np.load(plm_path)
-
-
-def load_energy_model(weights_path, device):
-    """Load the AIUPred model used to generate energy embeddings on the fly."""
-    energy_model = AIUPredTransformer()
-    energy_model.load_state_dict(tr.load(weights_path, map_location=device))
-    energy_model.to(device)
-    energy_model.eval()
-    return energy_model
-
-
-def build_ensemble_dirs(config: dict):
-    """
-    Build a list of ensemble model directories.
-    One trained model is stored per fold under a common base directory, e.g.:
-        - models/fold0/
-        - models/fold1/
-    Each fold directory must contain both config.yaml and weights.pk.
-    """
-    main_model_dir = Path(config["main_model_dir"])
-
-    if not main_model_dir.exists():
-        raise FileNotFoundError(f"Model directory not found: {main_model_dir}")
-
-    fold_dirs = []
-    for fold_dir in sorted(main_model_dir.iterdir(), key=lambda p: p.name):
-        if not fold_dir.is_dir() or not fold_dir.name.startswith("fold"):
-            continue
-
-        cfg_path = fold_dir / "config.yaml"
-        weights_path = fold_dir / "weights.pk"
-        if cfg_path.exists() and weights_path.exists():
-            fold_dirs.append(fold_dir)
-
-    if not fold_dirs:
-        raise ValueError(
-            f"No fold directories with config.yaml and weights.pk found under {main_model_dir}"
-        )
-
-    return fold_dirs
-
-
 def build_embedding(
         acc: str,
         sequence: str,
@@ -175,9 +127,9 @@ def run_for_protein(
         return None
 
     if verbose:
-        print(f"\nEmbedding shape: {emb.shape}")
-        print(f"Protein ID: {acc}")
-        print(f"Sequence length: {emb.shape[1]} residues")
+        print(f"\nProtein ID: {acc}")
+        print(f"\tEmbedding shape: {emb.shape}")
+        print(f"\tSequence length: {emb.shape[1]} residues")
 
     centers, predictions = model.pred_sliding_window(emb, step=window_step)
 
@@ -189,74 +141,6 @@ def run_for_protein(
         'rows': format_caid_rows(centers, sequence, scores, labels),
         'elapsed_ms': elapsed_ms,
     }
-
-
-def format_caid_rows(centers, sequence, scores, labels):
-    """Build (pos, aa, score, label) tuples for one protein."""
-    rows = []
-    for idx, score, label in zip(centers, scores, labels):
-        idx = int(idx)
-        aa = sequence[idx]         # centers are 0-based
-        pos = idx + 1              # 1-based position for output
-        rows.append((pos, aa, float(score), int(label)))
-    return rows
-
-
-def write_caid_block(out, acc, rows):
-    out.write(f">{acc}\n")
-    for pos, aa, score, label in rows:
-        out.write(f"{pos}\t{aa}\t{score:.3f}\t{label}\n")
-
-
-def save_protein_prediction_caid(acc: str, rows: list, output_dir: Path) -> Path:
-    """Save predictions for a single protein to a CAID format file."""
-    predictions_caid = output_dir / f"{acc}.caid"
-    with open(predictions_caid, 'w') as out:
-        write_caid_block(out, acc, rows)
-    return predictions_caid
-
-
-def save_combined_predictions(all_rows: list, dir: Path, save_csv: bool = False):
-    """Write combined CSV and CAID files from in-memory prediction results."""
-    if not all_rows:
-        return None, None
-    combined_caid = dir / "all_predictions.caid"
-
-    if save_csv:
-        combined_csv = dir / "all_predictions.csv"
-        csv_rows = []
-
-    with open(combined_caid, 'w') as out:
-        for result in all_rows:
-            write_caid_block(out, result['protein_id'], result['rows'])
-            if save_csv:
-                csv_rows.extend(
-                    {'protein_id': result['protein_id'], 
-                     'position': pos, 'aa': aa, 
-                     'score': score, 'label': label}
-                    for pos, aa, score, label in result['rows']
-                )
-    if save_csv:
-        pd.DataFrame(csv_rows).to_csv(combined_csv, index=False)
-    return combined_caid
-
-
-def save_prediction_timings(timings: list, dir: Path, model_name: str = "emb2bind") -> Path:
-    """Save per-sequence prediction timings to a CSV file."""
-    if not timings:
-        return None
-    
-    time_str = f"{datetime.now(ZoneInfo('UTC')).strftime('%a %b %e %H:%M:%S %Z %Y')}"
-
-    timings_csv = dir / "timings.csv"
-
-    with open(timings_csv, 'w') as f:
-        f.write(f"# Running {model_name}, started {time_str}\n")
-        f.write("sequence,milliseconds\n")
-        for seq_id, ms in timings:
-            f.write(f"{seq_id},{ms}\n")
-
-    return timings_csv
 
 
 def main():
@@ -297,10 +181,9 @@ def main():
 
     all_rows = []
     timings = []
+    print(f"Predicting binding residues for {len(fasta_records)} proteins...")
     for header, sequence in fasta_records.items():
         acc_from_header = header.split()[0]
-        if verbose:
-            print(f"\nProcessing protein: {acc_from_header}")
 
         result = run_for_protein(
             acc_from_header,
@@ -310,6 +193,7 @@ def main():
             energy_model,
             device,
             threshold=threshold,
+            verbose=verbose
         )
 
         if result is None:
@@ -322,14 +206,15 @@ def main():
 
     print(f"\nAll individual outputs saved to: {output_dir}")
 
-    # write combined outputs (CSV and CAID-style) if we collected rows
+    # Write a combined CAID file with all predictions
     combined_caid = save_combined_predictions(all_rows, output_dir)
     print(f"Combined predictions saved to: {combined_caid}")
 
     timings_csv = save_prediction_timings(timings, output_dir)
     if timings_csv is not None:
         print(f"Timings written to: {timings_csv}")
-    
+    print()
+
 
 if __name__ == '__main__':
     main()

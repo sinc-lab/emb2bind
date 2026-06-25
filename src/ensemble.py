@@ -14,7 +14,6 @@ class EnsembleModel(nn.Module):
     weights. The forward method averages the predicted probabilities from all models.
     """
     def __init__(self, model_dirs, device='cpu'):
-        # TODO: agregar la posibilidad de cargar modelos en una carpeta o varias.
         super().__init__()
         self.device = device
         self.models = nn.ModuleList()
@@ -110,3 +109,35 @@ class EnsembleModel(nn.Module):
         avg = np.mean(stacked, axis=0)     # (n_windows, nclasses)
 
         return centers, avg
+
+
+def build_ensemble_dirs(config: dict):
+    """
+    Build a list of ensemble model directories.
+    One trained model is stored per fold under a common base directory, e.g.:
+        - models/fold0/
+        - models/fold1/
+        ...
+    Each fold directory must contain both config.yaml and weights.pk.
+    """
+    main_model_dir = Path(config["main_model_dir"])
+
+    if not main_model_dir.exists():
+        raise FileNotFoundError(f"Model directory not found: {main_model_dir}")
+
+    fold_dirs = []
+    for fold_dir in sorted(main_model_dir.iterdir(), key=lambda p: p.name):
+        if not fold_dir.is_dir() or not fold_dir.name.startswith("fold"):
+            continue
+
+        cfg_path = fold_dir / "config.yaml"
+        weights_path = fold_dir / "weights.pk"
+        if cfg_path.exists() and weights_path.exists():
+            fold_dirs.append(fold_dir)
+
+    if not fold_dirs:
+        raise ValueError(
+            f"No fold directories with config.yaml and weights.pk found under {main_model_dir}"
+        )
+
+    return fold_dirs

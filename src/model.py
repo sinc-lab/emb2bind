@@ -1,8 +1,9 @@
-import torch as tr
 import math
+import torch as tr
+from tqdm import tqdm
 from torch import nn
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, average_precision_score
-from tqdm import tqdm
+
 
 class BaseModel(nn.Module):
     def __init__(self, nclasses, emb_size=352, lr=1e-3, device="cpu", 

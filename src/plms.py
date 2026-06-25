@@ -1,10 +1,11 @@
 import os
-from Bio import SeqIO
-import numpy as np
-from tqdm import tqdm
-import torch
 import re 
 import esm
+import torch as tr
+import numpy as np
+from tqdm import tqdm
+from Bio import SeqIO
+from pathlib import Path
 
 
 def read_and_clean_fasta(fasta_path: str) -> tuple[list[str], list[str]]:
@@ -28,13 +29,16 @@ def get_esm2(
         device: str = 'cuda',
         max_length: int = 4000
         ):
+    """
+    Generate ESM2 embeddings for protein sequences in a FASTA file and save them as .npy files.
+    """
     # Available ESM2 models and their representation layers
     MODELS = {
         "esm2_t33_650M_UR50D": 33,
         "esm2_t6_8M_UR50D": 6
     }
     
-    device = torch.device(device)
+    device = tr.device(device)
     os.makedirs(output_dir, exist_ok=True)
     
     # Load model directly
@@ -55,7 +59,6 @@ def get_esm2(
     protein_ids, sequences = read_and_clean_fasta(fasta_path)
     
     skipped_proteins = []
-
     for prot_id, seq in tqdm(zip(protein_ids, sequences)):
         # Check sequence length
         if len(seq) > max_length:
@@ -68,7 +71,7 @@ def get_esm2(
         batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
         batch_tokens = batch_tokens.to(device)
         
-        with torch.no_grad():
+        with tr.no_grad():
             results = model(batch_tokens, repr_layers=[num_repr_layer], return_contacts=False)
         
         for i, embed in enumerate(results["representations"][num_repr_layer]):
@@ -81,3 +84,12 @@ def get_esm2(
         print(f"\nSkipped {len(skipped_proteins)} proteins with length > {max_length} aa:")
         for prot_id, length in skipped_proteins:
             print(f"  - {prot_id}: {length} aa")
+
+
+def load_plm_embedding(acc: str, plm_emb_dir: str):
+    """Load the precomputed pLM embedding for a protein accession."""
+    plm_path = Path(plm_emb_dir) / f"{acc}.npy"
+    
+    if not plm_path.exists():
+        raise FileNotFoundError(f"pLM embedding not found: {plm_path}")
+    return np.load(plm_path)
