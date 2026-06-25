@@ -19,7 +19,7 @@ COPY predict.py /app/
 ENTRYPOINT ["python", "/app/predict.py", \
             "--device", "cpu", \
             "--fasta", "/data/input.fasta", \
-            "--embedding_dir", "/data/embeddings", \
-            "--output_dir", "/output", \
+            "--embedding-dir", "/data/embeddings", \
+            "--output-dir", "/output", \
             "--threads", "4"]
 CMD []

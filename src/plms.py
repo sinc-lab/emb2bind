@@ -1,6 +1,5 @@
 import os
 import re 
-import esm
 import torch as tr
 import numpy as np
 from tqdm import tqdm
@@ -32,6 +31,8 @@ def get_esm2(
     """
     Generate ESM2 embeddings for protein sequences in a FASTA file and save them as .npy files.
     """
+    import esm
+    
     # Available ESM2 models and their representation layers
     MODELS = {
         "esm2_t33_650M_UR50D": 33,
