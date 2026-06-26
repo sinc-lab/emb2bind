@@ -6,8 +6,8 @@ The model was trained to predict protein binding residues using binding annotati
 
 The input representation is composed of two components:
 
-* **ESM-2 residue-level embeddings**, extracted with the `esm2_t6_8M_UR50D` model [Lin et al., 2023](https://doi.org/10.1126/science.ade2574).
-* **AIUPred energy-based features**, which provide residue-level energy information [Erdős and Dosztányi, 2024](https://doi.org/10.1093/nar/gkae385).
+* **ESM-2 residue-level embeddings**, extracted with the `esm2_t6_8M_UR50D` model ([Lin et al., 2023](https://doi.org/10.1126/science.ade2574)).
+* **AIUPred energy-based features**, which provide residue-level energy information ([Erdős and Dosztányi, 2024](https://doi.org/10.1093/nar/gkae385)).
 
 These features are concatenated and used as input to the binding prediction model.
 
@@ -15,14 +15,14 @@ These features are concatenated and used as input to the binding prediction mode
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/sinc-lab/emb2bind.git
-cd emb2bind
+git clone https://github.com/sinc-lab/e_emb2bind_caid4.git
+cd e_emb2bind_caid4
 ```
 
 2. **Create and activate a virtual environment**:
 ```bash
-conda create -n emb2bind python=3.11
-conda activate emb2bind
+conda create -n e_emb2bind_caid4 python=3.11
+conda activate e_emb2bind_caid4
 ```
 
 3. **Install required packages:**
@@ -105,7 +105,7 @@ First, generate the embeddings as described above. This step must be done before
 The image is available on Docker Hub:
 
 ```bash
-docker pull sofiaaduarte/emb2bind:caid-test
+docker pull sofiaaduarte/e_emb2bind:caid4
 ```
 
 ### 3. Run the container offline
@@ -115,7 +115,7 @@ docker run --rm --network none \
   -v /absolute/path/to/samples.fasta:/data/input.fasta:ro \
   -v /absolute/path/to/embeddings:/data/embeddings:ro \
   -v /absolute/path/to/output:/output \
-  sofiaaduarte/emb2bind:caid-test \
+  sofiaaduarte/e_emb2bind:caid4 \
   --threads 4
 ```
 
@@ -136,7 +136,7 @@ docker run --rm --network none \
   -v ./data/samples.fasta:/data/input.fasta:ro \
   -v ./data/embeddings:/data/embeddings:ro \
   -v ./results:/output \
-  sofiaaduarte/emb2bind:caid-test \
+  sofiaaduarte/e_emb2bind:caid4 \
   --threads 4
 ```
 The container will write one `{protein_id}.caid` file per protein in the output directory, along with a `timings.csv` file containing per-sequence execution times in milliseconds.
@@ -147,7 +147,7 @@ The container will write one `{protein_id}.caid` file per protein in the output 
 The Docker image is already available on Docker Hub. To build it locally from this repository:
 
 ```bash
-docker build --network=host -t emb2bind:caid .
+docker build --network=host -t e_emb2bind:caid4 .
 ```
 
 In order to publish to Docker Hub, log in:
@@ -157,10 +157,10 @@ docker login
 
 Tag the local image:
 ```bash
-docker tag emb2bind:caid <dockerhub-user>/emb2bind:caid
+docker tag e_emb2bind:caid4 <dockerhub-user>/e_emb2bind:caid4
 ```
 And then push it:
 
 ```bash
-docker push <dockerhub-user>/emb2bind:caid
+docker push <dockerhub-user>/e_emb2bind:caid4
 ```
