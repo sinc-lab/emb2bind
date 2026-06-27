@@ -1,5 +1,5 @@
 # e_emb2bind: protein binding prediction tool
-emb2bind is a protein binding prediction tool that takes as input a FASTA file and a directory containing precomputed residue-level embeddings, trains several emb2bind models, ensembles them with simple voting, and returns binding predictions per amino acid in CAID-style format.
+e_emb2bind is a protein binding prediction tool that takes as input a FASTA file and a directory containing precomputed residue-level embeddings, trains several emb2bind models, ensembles them with simple voting, and returns binding predictions per amino acid in CAID-style format.
 
 ## Model overview
 The model was trained to predict protein binding residues using binding annotations from [DisProt](https://disprot.org/), release 25_12. Residues annotated as binding were used as positive examples, while all other residues were treated as negative examples.
