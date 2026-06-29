@@ -9,6 +9,7 @@ import os
 import yaml
 import time
 import argparse
+from tqdm import tqdm
 import numpy as np
 import torch as tr
 from pathlib import Path
@@ -181,28 +182,32 @@ def main():
 
     all_rows = []
     timings = []
-    print(f"Predicting binding residues for {len(fasta_records)} proteins...")
-    for header, sequence in fasta_records.items():
-        acc_from_header = header.split()[0]
+    print(f"\nPredicting binding residues for {len(fasta_records)} proteins...")
+    with tqdm(total=len(fasta_records), unit="protein", desc="Analyzing proteins") as pbar: 
+        for header, sequence in fasta_records.items():
+            acc_from_header = header.split()[0]
+            pbar.set_description(f"Analyzing {acc_from_header}")
 
-        result = run_for_protein(
-            acc_from_header,
-            sequence,
-            model,
-            plm_emb_dir,
-            energy_model,
-            device,
-            threshold=threshold,
-            verbose=verbose
-        )
+            result = run_for_protein(
+                acc_from_header,
+                sequence,
+                model,
+                plm_emb_dir,
+                energy_model,
+                device,
+                threshold=threshold,
+                verbose=verbose
+            )
 
-        if result is None:
-            timings.append((acc_from_header, 0))
-            continue
-        
-        save_protein_prediction_caid(result['protein_id'], result['rows'], output_dir)
-        all_rows.append(result)
-        timings.append((acc_from_header, result['elapsed_ms']))
+            if result is None:
+                timings.append((acc_from_header, 0))
+                pbar.update(1)
+                continue
+            
+            save_protein_prediction_caid(result['protein_id'], result['rows'], output_dir)
+            all_rows.append(result)
+            timings.append((acc_from_header, result['elapsed_ms']))
+            pbar.update(1) 
 
     print(f"\nAll individual outputs saved to: {output_dir}")
 
