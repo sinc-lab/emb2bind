@@ -1,7 +1,5 @@
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 
 def format_caid_rows(centers, sequence, scores, labels):
@@ -55,12 +53,13 @@ def save_combined_predictions(all_rows: list, dir: Path, save_csv: bool = False,
     return combined_caid
 
 
-def save_prediction_timings(timings: list, dir: Path, model_name: str = "emb2bind") -> Path:
+def save_prediction_timings(timings: list, dir: Path, initial_time: str, 
+                            model_name: str = "e_emb2bind") -> Path:
     """Save per-sequence prediction timings to a CSV file."""
     if not timings:
         return None
     
-    time_str = f"{datetime.now(ZoneInfo('UTC')).strftime('%a %b %e %H:%M:%S %Z %Y')}"
+    time_str = f"{initial_time.strftime('%a %b %e %H:%M:%S %Z %Y')}"
 
     timings_csv = dir / "timings.csv"
 

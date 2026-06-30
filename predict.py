@@ -3,16 +3,21 @@ Predict binding residues from protein sequences using a trained ensemble model a
 protein language models.
 
 Usage:
-    python predict.py -f data/samples.fasta
+    python predict.py -f <input_fasta> -e <embedding_dir> [-o <output_dir>] [-d <device>] [-t <num_threads>]
+
+For example:
+    python predict.py -f data/samples.fasta -e data/embeddings/
 """
 import os
 import yaml
 import time
 import argparse
-from tqdm import tqdm
 import numpy as np
 import torch as tr
+from tqdm import tqdm
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from src.ensemble import EnsembleModel, build_ensemble_dirs
 from src.energy import AIUPredTransformer, calculate_energy_embedding, load_energy_model
@@ -35,7 +40,7 @@ def parser():
     parser.add_argument(
         '--embedding-dir', '-e',
         type=str,
-        default='data/embeddings/',
+        required=True,
         help='Directory containing precomputed pLM embeddings.'
     )
     parser.add_argument(
@@ -54,12 +59,13 @@ def parser():
         '--device', '-d',
         type=str,
         default='cpu',
-        help='Device to run predictions on (e.g., "cpu", "cuda", "cuda:0", "cuda:1")'
+        help='Device to run predictions on (e.g., "cpu", "cuda", "cuda:0", "cuda:1"). ' \
+        'Default is "cpu". If using GPU, ensure that PyTorch is installed with CUDA support.'
     )
     parser.add_argument(
-        '--threads',
+        '--threads', '-t',
         type=int,
-        default=4,
+        default=8,
         help='Cap the number of CPU threads torch uses (torch.set_num_threads).'
     )
     parser.add_argument(
@@ -70,7 +76,7 @@ def parser():
     return parser.parse_args()
 
 
-def set_threads(num_threads: int = 4):
+def set_threads(num_threads: int = 8):
     """Set the number of threads for torch and other libraries."""
     n_str = str(num_threads)
     os.environ["OMP_NUM_THREADS"] = n_str
@@ -114,8 +120,7 @@ def run_for_protein(
         energy_model: AIUPredTransformer,
         device: str,
         window_step: int = 1,
-        threshold: float = 0.5,
-        verbose: bool = False,
+        threshold: float = 0.5
         ):
     """Run prediction pipeline for a single protein accession."""
     start_time = time.time()
@@ -126,11 +131,6 @@ def run_for_protein(
     except Exception as e:
         print(f"Skipping {acc}: could not build embeddings - {e}")
         return None
-
-    if verbose:
-        print(f"\nProtein ID: {acc}")
-        print(f"\tEmbedding shape: {emb.shape}")
-        print(f"\tSequence length: {emb.shape[1]} residues")
 
     centers, predictions = model.pred_sliding_window(emb, step=window_step)
 
@@ -182,6 +182,8 @@ def main():
 
     all_rows = []
     timings = []
+    initial_time = datetime.now(ZoneInfo('UTC'))
+
     print(f"\nPredicting binding residues for {len(fasta_records)} proteins...")
     with tqdm(total=len(fasta_records), unit="protein", desc="Analyzing proteins") as pbar: 
         for header, sequence in fasta_records.items():
@@ -195,8 +197,7 @@ def main():
                 plm_emb_dir,
                 energy_model,
                 device,
-                threshold=threshold,
-                verbose=verbose
+                threshold=threshold
             )
 
             if result is None:
@@ -215,7 +216,7 @@ def main():
     combined_caid = save_combined_predictions(all_rows, output_dir)
     print(f"Combined predictions saved to: {combined_caid}")
 
-    timings_csv = save_prediction_timings(timings, output_dir)
+    timings_csv = save_prediction_timings(timings, output_dir, initial_time)
     if timings_csv is not None:
         print(f"Timings written to: {timings_csv}")
     print()
