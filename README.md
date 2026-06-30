@@ -1,17 +1,17 @@
 # e_emb2bind: protein binding prediction tool
-e_emb2bind is a protein binding prediction tool that takes as input a FASTA file and a directory containing precomputed residue-level embeddings, trains several emb2bind models, ensembles them with simple voting, and returns binding predictions per amino acid in CAID-style format.
+e_emb2bind is a protein binding prediction tool that returns residue-level binding predictions. It takes as input a FASTA file and a directory containing precomputed ESM-2 residue-level embeddings, and applies a set of pre-trained emb2bind models combined by simple voting.
 
 ## Model overview
 The model was trained to predict protein binding residues using binding annotations from [DisProt](https://disprot.org/), release 25_12. Residues annotated as binding were used as positive examples, while all other residues were treated as negative examples.
 
 The input representation is composed of two components:
 
-* **ESM-2 residue-level embeddings**, extracted with the `esm2_t6_8M_UR50D` model ([Lin et al., 2023](https://doi.org/10.1126/science.ade2574)).
-* **AIUPred energy-based features**, which provide residue-level energy information ([Erdős and Dosztányi, 2024](https://doi.org/10.1093/nar/gkae385)).
+* **ESM-2 residue-level embeddings**, extracted with the `esm2_t6_8M_UR50D` model ([Lin et al., 2023](https://doi.org/10.1126/science.ade2574)). These embeddings are provided by the user as precomputed `.npy` files and must have shape `(320, L)`, where `L` is the length of the protein sequence.
+* **AIUPred energy-based features**, which provide residue-level energy information ([Erdős and Dosztányi, 2024](https://doi.org/10.1093/nar/gkae385)). These features are computed internally during prediction.
 
-These features are concatenated and used as input to the binding prediction model.
+The ESM-2 embeddings and the AIUPred energy-based features are concatenated internally and used as input to the binding prediction model.
 
-## Environment setup
+## Local environment setup
 
 1. **Clone the repository:**
 ```bash
@@ -41,7 +41,7 @@ To run the predictor, you need:
 Each embedding file must correspond to one FASTA record and should be named `{protein_id}.npy`, where `{protein_id}` is the identifier of the protein in the FASTA file. The embeddings should have shape `(320, L)`, where `L` is the length of the protein sequence.
 
 ### Generate embeddings
-If needed, compute the embeddings for the input FASTA file using `compute_embeddings.py`:
+If embeddings are not already available, they can be computed locally using `compute_embeddings.py`:
 
 ```bash
 python compute_embeddings.py \
@@ -50,7 +50,7 @@ python compute_embeddings.py \
   [--device <device>] \
   [--skip-existing]
 ```
-For example, using the provided sample FASTA file:
+For example, using the provided sample files:
 
 ```bash
 python compute_embeddings.py \
@@ -61,9 +61,20 @@ python compute_embeddings.py \
 
 This writes one `{protein_id}.npy` file per FASTA record (shape `(320, L)`).
 
-## Run prediction
+### Run prediction
 
-After computing the embeddings, run:
+After computing the embeddings, run the prediction script with the following command:
+
+```bash
+python predict.py \
+  --fasta <path_to_fasta> \
+  --embedding-dir <embedding-directory> \
+  [--output-dir <output_directory>] \
+  [--device <device>]
+
+```
+
+For example, using the provided sample files:
 
 ```bash
 python predict.py \
@@ -78,6 +89,7 @@ This script will:
 * Predict residue-level binding scores using a sliding-window approach.
 * Save the output files in the selected output directory (./results/ by default).
 
+In addition to individual `{protein_id}.caid` files, the predictor also writes `all_predictions.caid`, which contains the predictions for all proteins in the input FASTA file.
 
 ## Command-line arguments
 
@@ -86,8 +98,8 @@ This script will:
 | `--fasta`         |  `-f` | Path to the input FASTA file. Required.                                                |
 | `--embedding-dir` |  `-e` | Directory containing one precomputed `.npy` embedding file per FASTA record. Required. |
 | `--output-dir`    |  `-o` | Directory where predictions and additional outputs are saved. Default: `./results/`.   |
-| `--device`        |  `-d` | Device used for prediction: `cpu`, `cuda`, `cuda:0`, etc. Default: `cuda`.             |
-| `--threads`       |       | Number of CPU threads to use.                                                          |
+| `--device`        |  `-d` | Device used for prediction: `cpu`, `cuda`, `cuda:0`, etc. Default: `cpu`.             |
+| `--threads`       |       | Number of CPU threads to use. Default: 8.                                              |
 | `--verbose`       |  `-v` | Enable detailed progress messages. Default: disabled.                                  |
 
 
@@ -112,11 +124,11 @@ docker pull sofiaaduarte/e_emb2bind:caid4
 
 ```bash
 docker run --rm --network none \
-  -v /absolute/path/to/samples.fasta:/data/input.fasta:ro \
-  -v /absolute/path/to/embeddings:/data/embeddings:ro \
-  -v /absolute/path/to/output:/output \
+  -v </absolute/path/to/samples.fasta>:/data/input.fasta:ro \
+  -v </absolute/path/to/embeddings>:/data/embeddings:ro \
+  -v </absolute/path/to/output>:/output \
   sofiaaduarte/e_emb2bind:caid4 \
-  --threads 4
+  --threads 8
 ```
 
 The paths on the left side of each `:` correspond to paths on the host machine and can be changed by the user. The paths on the right side are fixed inside the container.
@@ -129,20 +141,20 @@ The required mounts are:
 | `/absolute/path/to/embeddings`    | `/data/embeddings`  | Directory containing one `{protein_id}.npy` file per FASTA record. Mounted as read-only. |
 | `/absolute/path/to/output`        | `/output`           | Directory where predictions are written.                                                 |
 
-Relative paths can also be used, but they should be explicitly written with `./` when appropriate. For example, using the current working directory and the provided sample FASTA and embeddings:
+For example, using the current working directory and the provided sample FASTA and embeddings:
 
 ```bash
 docker run --rm --network none \
-  -v ./data/samples.fasta:/data/input.fasta:ro \
-  -v ./data/embeddings:/data/embeddings:ro \
-  -v ./results:/output \
+  -v "$(pwd)/data/samples.fasta:/data/input.fasta:ro" \
+  -v "$(pwd)/data/embeddings:/data/embeddings:ro" \
+  -v "$(pwd)/results:/output" \
   sofiaaduarte/e_emb2bind:caid4 \
-  --threads 4
+  --threads 8
 ```
-The container will write one `{protein_id}.caid` file per protein in the output directory, along with a `timings.csv` file containing per-sequence execution times in milliseconds.
+The container will write one `{protein_id}.caid` file per protein in the output directory, along with a `timings.csv` file containing per-sequence execution times in milliseconds. Also, an `all_predictions.caid` file will be written, containing the predictions for all proteins in the input FASTA file.
 
 
-### 3. (Optional) Build and publish Docker Hub
+### 4. (Optional) Build and publish the Docker image
 
 The Docker image is already available on Docker Hub. To build it locally from this repository:
 
